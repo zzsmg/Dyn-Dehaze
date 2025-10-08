@@ -53,11 +53,6 @@ class Block(nn.Module):
         self.calayer = CALayer(dim)
         self.palayer = PALayer(dim)  # (b,1,1,1)
 
-        # self.SFT_scale_conv0 = nn.Conv2d(64, 32, 1)
-        # self.SFT_scale_conv1 = nn.Conv2d(32, 64, 1)
-        # self.SFT_shift_conv0 = nn.Conv2d(64, 32, 1)
-        # self.SFT_shift_conv1 = nn.Conv2d(32, 64, 1)
-
     def forward(self, x):
         res = self.act1(self.conv1(x[0]))
         res = res + x[0]
@@ -65,11 +60,6 @@ class Block(nn.Module):
         res = self.calayer(res)
         res = self.palayer(res)
         res += x[0]
-
-        # all B blocks
-        # scale = self.SFT_scale_conv1(F.leaky_relu(self.SFT_scale_conv0(x[1]), 0.1, inplace=True))  # （2，64，240， 240）
-        # shift = self.SFT_shift_conv1(F.leaky_relu(self.SFT_shift_conv0(x[1]), 0.1, inplace=True))
-        # res = res * (scale + 1) + shift
         return res, x[1]
 
 
@@ -109,15 +99,14 @@ class Group(nn.Module):
     def __init__(self, conv, dim, kernel_size, blocks):
         super(Group, self).__init__()
         self.conv = conv(dim, dim, kernel_size)
-        # PAM-FFA-2
-        # modules = []
-        # for i in range(blocks):
-        #     if i % 2 == 0:
-        #         modules.append(Block(conv, dim, kernel_size))
-        #     else:
-        #         modules.append(Block_dt(conv, dim, kernel_size))
-        # PAM-FFA-1
-        modules = [Block(conv, dim, kernel_size) for _ in range(blocks)]
+        # Dyn-FFA-2
+        modules = []
+        for i in range(blocks):
+            if i % 2 == 0:
+                modules.append(Block(conv, dim, kernel_size))
+            else:
+                modules.append(Block_dt(conv, dim, kernel_size))
+
         self.gp = nn.Sequential(*modules)
 
         self.SFT_scale_conv0 = nn.Conv2d(64, 32, 1)
@@ -134,10 +123,6 @@ class Group(nn.Module):
         res = self.gp(x)  # return res, x[1]
         res = self.conv(res[0])
         res += x[0]
-        # PAM-FFA-1
-        scale = self.SFT_scale_conv1(F.leaky_relu(self.SFT_scale_conv0(x[1]), 0.1, inplace=True))  # （2，64，240， 240）
-        shift = self.SFT_shift_conv1(F.leaky_relu(self.SFT_shift_conv0(x[1]), 0.1, inplace=True))
-        res = res * (scale + 1) + shift
         return res
 
 
